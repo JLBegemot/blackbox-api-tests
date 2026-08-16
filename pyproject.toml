@@ -1,0 +1,25 @@
+[project]
+name = "blackbox-api-tests"
+version = "0.1.0"
+description = "API-тесты"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "pyotp>=2.9",
+    "reportlab>=4.2",
+    "pyyaml>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "endpoint(op): операция контракта 'METHOD /path', которую проверяет тест; сверяется с live-спекой стенда при коллекции",
+    "case(id): идентификатор кейса TC-NNN из согласованного тест-плана",
+]
