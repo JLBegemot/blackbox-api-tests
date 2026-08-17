@@ -7,12 +7,18 @@
 
     uv run python scripts/validate_cases.py .claude/tmp/<id>/cases.yaml
 
+Ручки из задачи ещё нет в снапшоте (новая ручка из PR бэкенда) — сверять
+по актуальной спеке, скачанной из PR (``docs/openapi.json`` ветки):
+
+    uv run python scripts/validate_cases.py .claude/tmp/<id>/cases.yaml \
+        --spec .claude/tmp/<id>/openapi.json
+
 Проверяется:
 
 * обязательные поля у каждого кейса;
 * уникальность ``id`` и формат ``TC-NNN``;
-* ``endpoint`` существует в ``contracts/openapi.json`` — снапшоте
-  live-контракта стенда;
+* ``endpoint`` существует в спеке (по умолчанию ``contracts/openapi.json`` —
+  снапшот live-контракта стенда; переопределяется ``--spec``);
 * ``action: edit`` требует ``existing_test``;
 * допустимые значения ``profile``, ``priority``, ``source``;
 * один ``target_file`` не делится между разными ``action``-режимами так,
@@ -35,15 +41,15 @@ SOURCES = {"код", "контракт", "план", "инференс"}
 _HTTP_METHODS = ("get", "post", "put", "patch", "delete", "head", "options")
 
 
-def known_endpoints() -> set[str]:
+def known_endpoints(spec_path: Path) -> set[str]:
     import json
 
-    if not SPEC_PATH.exists():
+    if not spec_path.exists():
         raise SystemExit(
-            "нет contracts/openapi.json — сними со стенда:\n"
-            "    python scripts/openapi_snapshot.py --dump"
+            f"нет {spec_path} — сними со стенда (python scripts/openapi_snapshot.py "
+            "--dump) либо укажи --spec со спекой из PR (docs/openapi.json ветки)"
         )
-    spec = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
     return {
         f"{method.upper()} {path}"
         for path, item in spec.get("paths", {}).items()
@@ -52,7 +58,7 @@ def known_endpoints() -> set[str]:
     }
 
 
-def validate(path: Path) -> list[str]:
+def validate(path: Path, spec_path: Path = SPEC_PATH) -> list[str]:
     import yaml
 
     problems: list[str] = []
@@ -74,7 +80,7 @@ def validate(path: Path) -> list[str]:
         problems.append("'cases' должен быть непустым списком")
         return problems
 
-    endpoints = known_endpoints()
+    endpoints = known_endpoints(spec_path)
     seen_ids: set[str] = set()
     files_by_action: dict[str, set[str]] = {}
 
@@ -104,8 +110,9 @@ def validate(path: Path) -> list[str]:
         endpoint = case.get("endpoint")
         if endpoint and " ".join(str(endpoint).split()) not in endpoints:
             problems.append(
-                f"{label}: ручки '{endpoint}' нет в contracts/openapi.json. "
-                "Новая ручка → scripts/openapi_snapshot.py --dump"
+                f"{label}: ручки '{endpoint}' нет в {spec_path}. "
+                "Новая ручка из PR → --spec со спекой из PR; "
+                "снапшот отстал от стенда → scripts/openapi_snapshot.py --dump"
             )
 
         profile = case.get("profile")
@@ -152,14 +159,24 @@ def validate(path: Path) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        raise SystemExit("использование: validate_cases.py <путь к cases.yaml>")
+    import argparse
 
-    path = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(description="Валидация cases.yaml")
+    parser.add_argument("cases", type=Path, help="путь к cases.yaml")
+    parser.add_argument(
+        "--spec",
+        type=Path,
+        default=SPEC_PATH,
+        help="спека для сверки ручек (по умолчанию contracts/openapi.json; "
+        "для новых ручек из PR — скачанная docs/openapi.json)",
+    )
+    args = parser.parse_args()
+
+    path = args.cases
     if not path.exists():
         raise SystemExit(f"нет файла {path}")
 
-    problems = validate(path)
+    problems = validate(path, args.spec)
     if problems:
         print(f"{path}: {len(problems)} проблем(ы)")
         for problem in problems:
