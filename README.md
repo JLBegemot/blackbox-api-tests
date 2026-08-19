@@ -45,11 +45,11 @@ BACKEND_REPO=../путь-к-бэкенду
 
 ## Контракт
 
-* `stand/.env.stand` — **справочный** профиль стенда, против которого написан
-  набор: пустые LLM-ключи (эвристический fallback агентов),
-  `EMAIL_VERIFICATION_ENABLED=false`, `FEATURE_MFA=true`, явно зафиксированные
-  лимиты и TTL. Файл ничего не запускает — он фиксирует, какую конфигурацию
-  тесты ожидают от внешнего стенда, и правится только отдельным MR.
+* Профиль стенда, против которого написан набор: пустые LLM-ключи (эвристический
+  fallback агентов), `EMAIL_VERIFICATION_ENABLED=false`, `FEATURE_MFA=true`,
+  зафиксированные лимиты и TTL. Конфигурация живёт вместе со стендом, снаружи
+  этого репозитория; правила, которые из неё следуют, — в `docs/test-rules.md`
+  (STAND-*).
 * `contracts/openapi.json` — снапшот live-спеки стенда;
   `python scripts/openapi_snapshot.py --check` — детектор дрейфа контракта.
 * Правила написания тестов — `docs/test-rules.md`, единственный источник истины.
@@ -57,7 +57,6 @@ BACKEND_REPO=../путь-к-бэкенду
 ## Структура
 
 ```
-stand/       .env.stand — справочный профиль внешнего стенда
 contracts/   снапшот OpenAPI
 tests/       auth/  user/  resumes/  ai/  legal/
 scripts/     openapi_snapshot.py, validate_cases.py
