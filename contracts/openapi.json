@@ -296,7 +296,7 @@
     }
   },
   "info": {
-    "description": "Simplified CV storage service: auth, file upload, user settings",
+    "description": "CV storage service: auth, file upload, user settings",
     "title": "CV Customs (webinar edition)",
     "version": "0.1.0"
   },
@@ -603,7 +603,7 @@
     },
     "/api/v1/auth/logout": {
       "post": {
-        "description": "Client-side JWT invalidation — server-side blocklist ships Week 6.\n\nWe still expose the endpoint so SPAs can ``POST`` to it to trigger\naudit-log \"logout\" events once Week 6 lands. Today it is a no-op; the\nclient is expected to discard the access token on its side.",
+        "description": "Client-side JWT invalidation.\n\nWe still expose the endpoint so SPAs have a stable logout URL. It is\na no-op; the client is expected to discard the access token on its side.",
         "operationId": "logout_v1_api_v1_auth_logout_post",
         "responses": {
           "204": {

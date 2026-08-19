@@ -60,7 +60,6 @@ python scripts/openapi_snapshot.py --check
 | `assert resp.status_code == 200` без `resp.text` | ASSERT-002 |
 | Общие данные между тестами, фиксированный e-mail вместо uuid | DB-002, FORBID-004 |
 | Нет теста на чужой объект, либо ожидается 403 вместо 404 | AUTH-002 |
-| 429 проверен без `Retry-After` | RATE-003 |
 | Точное значение `status`/`progress` там, где worker даёт гонку | JOB-002, JOB-003 |
 | Чтение SSE мимо фикстуры `sse` | SSE-005 |
 | Нет `@pytest.mark.endpoint` | MARK-001 |
