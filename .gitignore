@@ -4,5 +4,4 @@ __pycache__/
 .venv/
 venv/
 .idea/
-.claude/tmp/
-.claude/settings.local.json
+.claude/

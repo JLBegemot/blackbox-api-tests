@@ -1,8 +1,7 @@
 # blackbox-api-tests
 
 Чёрноящичные API-тесты бэкенда: HTTP-запросы к поднятому стенду, **ни одного импорта
-модулей бэкенда**, никакого прямого доступа к БД/Redis/S3.
-Правила и решения набора: `docs/test-rules.md`.
+модулей бэкенда**, никакого прямого доступа к БД/Redis/S3, никаких моков.
 
 ## Быстрый старт
 
@@ -13,6 +12,10 @@
 ```bash
 # Стенд уже поднят и готов — прогнать тесты
 uv run pytest -q
+
+# Один файл / один тест
+uv run pytest tests/auth/test_register.py -q
+uv run pytest tests/auth/test_register.py::test_register_returns_jwt -q
 ```
 
 Адрес стенда — `STAND_URL`, по умолчанию `http://localhost:8000`:
@@ -25,41 +28,43 @@ STAND_URL=http://stand.example:8080 uv run pytest -q
 них недоступны намеренно — как именно они спрятаны, дело того, кто поднимает
 стенд.
 
-## Чекаут бэкенда (только для пайплайна `/api-tests`)
+Зависимости — dev-группа `pyproject.toml`. `asyncio_mode = "auto"`: тесты пишутся
+как `async def` без декораторов.
 
-Тестам он не нужен никогда. Пайплайн проектирования использует его как **справочный
-источник** — фактические коды ошибок из хендлеров и дифф ветки как ТЗ. Путь задаётся
-переменной `BACKEND_REPO`:
+## Как устроен набор
 
-```bash
-BACKEND_REPO=../путь-к-бэкенду
-```
-
-Переменная не задана или путь не существует — пайплайн работает по контракту
-и пробным запросам к стенду, помечая выводы `[инференс]`. Удобное место для
-постоянного значения — `.claude/settings.local.json` (не версионируется):
-
-```json
-{ "env": { "BACKEND_REPO": "../путь-к-бэкенду" } }
-```
+* **Детерминизм без моков** — его даёт конфигурация внешнего стенда: пустые
+  LLM-ключи (агенты работают эвристикой, `model_used == "heuristic"`),
+  `EMAIL_VERIFICATION_ENABLED=false` (register сразу возвращает JWT),
+  зафиксированные лимиты и TTL.
+* **Изоляция уникальностью, а не очисткой** — база между тестами не чистится,
+  набор параллелится (`pytest -n`). Каждый тест получает своего пользователя
+  `t-{uuid}@example.com` и свой IP в `X-Forwarded-For` (персональные бакеты
+  rate-limit — без флаша Redis и без sleep).
+* **Вся обвязка — `tests/conftest.py`**: фикстуры `api`, `user`, `auth`,
+  `seed_resume`, `poll_until`, `sse`. Собственных клиентов и хелперов в
+  тест-файлах нет.
+* **Гейт маркеров по контракту** — каждый тест несёт
+  `@pytest.mark.endpoint("METHOD /path")` и `@pytest.mark.case("TC-NNN")`.
+  На коллекции операции сверяются со спекой стенда (офлайн — со снапшотом);
+  незнакомая операция роняет коллекцию.
 
 ## Контракт
 
-* Профиль стенда, против которого написан набор: пустые LLM-ключи (эвристический
-  fallback агентов), `EMAIL_VERIFICATION_ENABLED=false`, `FEATURE_MFA=true`,
-  зафиксированные лимиты и TTL. Конфигурация живёт вместе со стендом, снаружи
-  этого репозитория; правила, которые из неё следуют, — в `docs/test-rules.md`
-  (STAND-*).
-* `contracts/openapi.json` — снапшот live-спеки стенда;
-  `python scripts/openapi_snapshot.py --check` — детектор дрейфа контракта.
-* Правила написания тестов — `docs/test-rules.md`, единственный источник истины.
+```bash
+# Сверить live-спеку стенда со снапшотом contracts/openapi.json
+python scripts/openapi_snapshot.py --check
+
+# Принять дрейф осознанно (перезаписать снапшот)
+python scripts/openapi_snapshot.py --dump
+```
+
+Новая ручка в API → сначала `--dump`, потом тесты на неё.
 
 ## Структура
 
 ```
 contracts/   снапшот OpenAPI
 tests/       auth/  user/  resumes/  ai/  legal/
-scripts/     openapi_snapshot.py, validate_cases.py
-docs/        test-rules.md
-.claude/     скиллы и агенты пайплайна /api-tests
+scripts/     openapi_snapshot.py
 ```
