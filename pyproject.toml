@@ -21,5 +21,4 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "endpoint(op): операция контракта 'METHOD /path', которую проверяет тест; сверяется с live-спекой стенда при коллекции",
-    "case(id): идентификатор кейса TC-NNN из согласованного тест-плана",
 ]

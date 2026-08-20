@@ -63,7 +63,6 @@ uv run python scripts/validate_cases.py <путь к cases.yaml>
 
 ```python
 @pytest.mark.endpoint("POST /api/v1/ai/tailor")   # MARK-001, операция из контракта
-@pytest.mark.case("TC-004")                        # MARK-002, связь с планом
 ```
 
 **Кейсы с `action: edit` — не новые тесты.** Открой `existing_test` и добавь

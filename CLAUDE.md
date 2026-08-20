@@ -40,7 +40,7 @@ uv run python scripts/validate_cases.py .claude/tmp/<id>/cases.yaml
 
 **Вся обвязка — `tests/conftest.py`**; собственные клиенты/хелперы в тест-файлах запрещены (FIXT-001). Фикстуры: `api` (httpx-клиент с уникальным IP), `user` (регистрация → email/password/id/token), `auth` (заголовок Authorization), `seed_resume` (фабрика резюме через API), `poll_until` (опрос фоновой задачи с дедлайном), `sse` (чтение event-stream с дедлайном и лимитом событий).
 
-**Гейт маркеров по контракту.** Каждый тест несёт маркеры `@pytest.mark.endpoint("METHOD /path")` и `@pytest.mark.case("TC-NNN")`. На коллекции `conftest.py` сверяет операции из `endpoint` со спекой (live со стенда, офлайн — снапшот `contracts/openapi.json`); незнакомая операция роняет коллекцию. Новая ручка → сначала `python scripts/openapi_snapshot.py --dump`.
+**Гейт маркеров по контракту.** Каждый тест несёт маркер `@pytest.mark.endpoint("METHOD /path")`. На коллекции `conftest.py` сверяет операции из `endpoint` со спекой (live со стенда, офлайн — снапшот `contracts/openapi.json`); незнакомая операция роняет коллекцию. Новая ручка → сначала `python scripts/openapi_snapshot.py --dump`.
 
 **Раскладка** — по фичам: `tests/auth/`, `tests/user/`, `tests/resumes/`, `tests/ai/`, `tests/legal/`; файл на фичу, не на роутер (STRUCT-002).
 
