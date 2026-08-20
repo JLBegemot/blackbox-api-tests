@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SPEC_PATH = REPO_ROOT / "contracts" / "openapi.json"
 
 REQUIRED = ("id", "endpoint", "profile", "action", "target_file", "title", "expect")
-PROFILES = {"http", "sse", "llm", "job", "ratelimit"}
+PROFILES = {"http", "sse", "llm", "job"}
 ACTIONS = {"new", "edit"}
 PRIORITIES = {"blocker", "critical", "normal"}
 SOURCES = {"код", "контракт", "план", "инференс"}

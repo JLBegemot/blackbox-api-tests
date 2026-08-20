@@ -45,7 +45,7 @@ def _load_live_spec() -> dict:
 
 
 def operations(spec: dict) -> set[tuple[str, str]]:
-    """``{("POST", "/api/v1/ai/analyze"), ...}`` — все операции контракта."""
+    """``{("GET", "/api/user/me"), ...}`` — все операции контракта."""
 
     return {
         (method.upper(), path)
@@ -79,7 +79,9 @@ def cmd_check() -> int:
     stored_ops = operations(json.loads(stored)) if stored else set()
 
     print("live-спека стенда разошлась со снапшотом contracts/openapi.json:")
-    print("    python scripts/openapi_snapshot.py --dump   # принять дрейф осознанно")
+    print(
+        "    uv run python scripts/openapi_snapshot.py --dump   # принять дрейф осознанно"
+    )
     for method, path in sorted(live_ops - stored_ops):
         print(f"  + {method:7} {path}")
     for method, path in sorted(stored_ops - live_ops):
@@ -92,7 +94,9 @@ def cmd_check() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--dump", action="store_true", help="перезаписать снапшот live-спекой")
+    group.add_argument(
+        "--dump", action="store_true", help="перезаписать снапшот live-спекой"
+    )
     group.add_argument("--check", action="store_true", help="проверить дрейф контракта")
     args = parser.parse_args()
 

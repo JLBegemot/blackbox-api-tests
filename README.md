@@ -13,6 +13,9 @@
 ```bash
 # Стенд уже поднят и готов — прогнать тесты
 uv run pytest -q
+
+# То же параллельно (pytest-xdist в dev-группе)
+uv run pytest -n auto -q
 ```
 
 Адрес стенда — `STAND_URL`, по умолчанию `http://localhost:8000`:
@@ -43,22 +46,37 @@ BACKEND_REPO=../путь-к-бэкенду
 { "env": { "BACKEND_REPO": "../путь-к-бэкенду" } }
 ```
 
+Сам файл закрыт на чтение агентом (`permissions.deny` в `.claude/settings.json`) —
+он рядом с секретами. Значение приходит в пайплайн через окружение, читать файл
+не нужно.
+
+## Переменные окружения
+
+| Переменная | Кто читает | Дефолт |
+|---|---|---|
+| `STAND_URL` | `tests/conftest.py`, `scripts/openapi_snapshot.py` | `http://localhost:8000` |
+| `BACKEND_REPO` | пайплайн `/api-tests` (справочно) | не задана — работа по контракту |
+| `GITHUB_MCP_TOKEN` | `.mcp.json`, GitHub MCP-сервер | не задана — GitHub MCP недоступен |
+
 ## Контракт
 
 * Профиль стенда, против которого написан набор: пустые LLM-ключи (эвристический
-  fallback агентов), `EMAIL_VERIFICATION_ENABLED=false`, `FEATURE_MFA=true`,
-  зафиксированные лимиты и TTL. Конфигурация живёт вместе со стендом, снаружи
-  этого репозитория; правила, которые из неё следуют, — в `docs/test-rules.md`
-  (STAND-*).
+  fallback агентов), `EMAIL_VERIFICATION_ENABLED=false`, зафиксированные TTL.
+  Конфигурация живёт вместе со стендом, снаружи этого репозитория; правила,
+  которые из неё следуют, — в `docs/test-rules.md` (STAND-*).
+* **Какие ручки и фича-флаги есть — смотреть в контракт, а не в этот файл**
+  (STAND-004): `jq -r '.paths | keys[]' contracts/openapi.json`. Набор ручек
+  меняется вместе с бэкендом, документация за ним не поспевает.
 * `contracts/openapi.json` — снапшот live-спеки стенда;
-  `python scripts/openapi_snapshot.py --check` — детектор дрейфа контракта.
+  `uv run python scripts/openapi_snapshot.py --check` — детектор дрейфа контракта.
 * Правила написания тестов — `docs/test-rules.md`, единственный источник истины.
 
 ## Структура
 
 ```
 contracts/   снапшот OpenAPI
-tests/       auth/  user/  resumes/  ai/  legal/
+tests/       по областям фич; каталог заводится с первым тестом в нём
+plans/       тест-планы, которые пишет пайплайн /api-tests
 scripts/     openapi_snapshot.py, validate_cases.py
 docs/        test-rules.md
 .claude/     скиллы и агенты пайплайна /api-tests

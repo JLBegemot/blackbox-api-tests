@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import time
@@ -53,7 +54,7 @@ def pytest_collection_modifyitems(config, items):
         raise pytest.UsageError(
             "маркер endpoint ссылается на операции, которых нет в контракте:\n"
             + "\n".join(unknown)
-            + "\nНовая ручка → обнови снапшот: python scripts/openapi_snapshot.py --dump"
+            + "\nНовая ручка → обнови снапшот: uv run python scripts/openapi_snapshot.py --dump"
         )
 
 
@@ -93,35 +94,49 @@ async def api(client_ip):
 
 
 @pytest.fixture
-async def user(api) -> dict:
+def register_user(api):
+    """Фабрика пользователей: ``await register_user()`` → ``{"email", "password", "id", "token"}``.
+
+    Нужна там, где пользователей в тесте больше одного: кейс «чужой объект»
+    (AUTH-002) регистрирует второго этой же фабрикой, а не своим хелпером.
+    """
+
+    async def _register() -> dict:
+        email = f"t-{uuid.uuid4().hex}@example.com"
+        password = "test-password-1"
+        resp = await api.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "consent": True,
+                "cross_border_consent": True,
+            },
+        )
+        assert resp.status_code == 200, (
+            f"register вернул {resp.status_code}: {resp.text} — стенд поднят "
+            "с EMAIL_VERIFICATION_ENABLED=false?"
+        )
+        body = resp.json()
+        return {
+            "email": email,
+            "password": password,
+            "id": body["user"]["id"],
+            "token": body["access_token"],
+        }
+
+    return _register
+
+
+@pytest.fixture
+async def user(register_user) -> dict:
     """Свежий пользователь: ``{"email", "password", "id", "token"}``.
 
     Стенд живёт с ``EMAIL_VERIFICATION_ENABLED=false``, поэтому register
     сразу возвращает 200 с JWT — второй запрос не нужен.
     """
 
-    email = f"t-{uuid.uuid4().hex}@example.com"
-    password = "test-password-1"
-    resp = await api.post(
-        "/api/v1/auth/register",
-        json={
-            "email": email,
-            "password": password,
-            "consent": True,
-            "cross_border_consent": True,
-        },
-    )
-    assert resp.status_code == 200, (
-        f"register вернул {resp.status_code}: {resp.text} — стенд поднят "
-        "с EMAIL_VERIFICATION_ENABLED=false?"
-    )
-    body = resp.json()
-    return {
-        "email": email,
-        "password": password,
-        "id": body["user"]["id"],
-        "token": body["access_token"],
-    }
+    return await register_user()
 
 
 @pytest.fixture
@@ -138,30 +153,48 @@ def auth(user) -> dict:
 # Сидинг данных — только через API
 # ---------------------------------------------------------------------------
 
-_DEFAULT_RESUME_CONTENT = {
-    "schemaVersion": 1,
-    "name": "Тест Тестовый",
-    "headline": "QA engineer",
-    "summary": "Seed resume for API tests.",
-    "contacts": {"email": "seed@example.com"},
-    "skills": ["python", "pytest"],
-    "experience": [],
-    "education": [],
-}
+_DEFAULT_RESUME_LINES = (
+    "Test Testovich",
+    "QA engineer",
+    "Seed resume for API tests.",
+    "Skills: python, pytest",
+)
+
+
+def _resume_pdf(lines: tuple[str, ...]) -> bytes:
+    """Минимальный валидный PDF — единственный способ засидить резюме снаружи."""
+
+    from reportlab.pdfgen import canvas
+
+    buffer = io.BytesIO()
+    page = canvas.Canvas(buffer)
+    y = 750
+    for line in lines:
+        page.drawString(72, y, line)
+        y -= 20
+    page.showPage()
+    page.save()
+    return buffer.getvalue()
 
 
 @pytest.fixture
 def seed_resume(api, auth):
-    """Фабрика резюме: ``await seed_resume()`` → JSON ``ResumeDetail``.
+    """Фабрика резюме: ``await seed_resume()`` → JSON ``ResumeFileOut``.
 
-    Сидинг одним ``POST /api/v1/resumes`` — ручка принимает опциональный
-    ``content`` и сразу создаёт первую версию, upload и PDF не нужны.
+    Создание резюме снаружи есть только одно — ``POST /api/v1/resumes/upload``
+    с файлом (`multipart/form-data`, поле ``file``). JSON-ручки создания
+    в контракте нет, поэтому PDF генерируется на лету (`reportlab`
+    из dev-группы) и уходит в загрузку.
     """
 
-    async def _seed(*, title: str = "Test resume", content: dict | None = None) -> dict:
+    async def _seed(
+        *,
+        filename: str = "seed-resume.pdf",
+        lines: tuple[str, ...] = _DEFAULT_RESUME_LINES,
+    ) -> dict:
         resp = await api.post(
-            "/api/v1/resumes",
-            json={"title": title, "content": content or _DEFAULT_RESUME_CONTENT},
+            "/api/v1/resumes/upload",
+            files={"file": (filename, _resume_pdf(lines), "application/pdf")},
             headers=auth,
         )
         assert resp.status_code == 201, resp.text
@@ -177,11 +210,11 @@ def seed_resume(api, auth):
 
 @pytest.fixture
 def poll_until(api):
-    """Опрос ``GET url`` до целевого статуса с дедлайном.
+    """Опрос ``GET url`` до целевого статуса с дедлайном (JOB-001).
 
-    ``await poll_until("/api/v1/ai/analyze/{id}", headers=auth)`` → финальное
-    тело ответа. По умолчанию ждёт ``status == "done"`` и падает, если задача
-    ушла в ``error`` или дедлайн вышел. Никаких ``sleep`` без дедлайна.
+    ``await poll_until(url, headers=auth)`` → финальное тело ответа.
+    По умолчанию ждёт ``status == "done"`` и падает, если задача ушла
+    в ``error`` или дедлайн вышел. Никаких ``sleep`` без дедлайна.
     """
 
     async def _poll(
@@ -204,14 +237,16 @@ def poll_until(api):
                 return last
             assert status != error, f"задача упала: {last}"
             await asyncio.sleep(interval_s)
-        raise AssertionError(f"не дождались status={done!r} за {timeout_s}s, последнее: {last}")
+        raise AssertionError(
+            f"не дождались status={done!r} за {timeout_s}s, последнее: {last}"
+        )
 
     return _poll
 
 
 @pytest.fixture
 def sse(api):
-    """Чтение ``text/event-stream`` с дедлайном.
+    """Чтение ``text/event-stream`` с дедлайном (SSE-005).
 
     ``await sse(url, headers=auth)`` → список событий ``{"event", "data"}``
     (``data`` распарсен из JSON, если это JSON). Поток читается до закрытия
@@ -249,7 +284,7 @@ def sse(api):
 
         try:
             await asyncio.wait_for(_read(), timeout=timeout_s)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise AssertionError(
                 f"SSE-поток {url} не закрылся за {timeout_s}s; получено {len(events)} событий: {events[-3:]}"
             )
